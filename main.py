@@ -5,7 +5,9 @@ from sklearn.metrics.pairwise import cosine_similarity     # To get Similarity S
 from groq import Groq                             # API to use LLM's
 import re                                         # To perform Regular Expression Functions
 from dotenv import load_dotenv                    # Loading API Key from .env file
-import os
+import os                                         # For environment vars
+from streamlit_lottie import st_lottie            # For animations
+import requests                                   # To fetch animation JSON
 
 
 # Load environment variables from .env
@@ -20,16 +22,14 @@ if "form_submitted" not in st.session_state:
     st.session_state.form_submitted = False
 
 if "resume" not in st.session_state:
-    st.session_state.resume=""
+    st.session_state.resume = ""
 
 if "job_desc" not in st.session_state:
-    st.session_state.job_desc=""
-
+    st.session_state.job_desc = ""
 
 
 # Title of the Project, change according to your style
 st.title("AI Resume Analyzer 📝")
-
 
 
 # <------- Defining Functions ------->
@@ -46,21 +46,18 @@ def extract_pdf_text(uploaded_file):
 
 # Function to calculate similarity 
 def calculate_similarity_bert(text1, text2):
-    ats_model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')      # Use BERT or SBERT or any model you want
-    # Encode the texts directly to embeddings
+    ats_model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')  # Use BERT or SBERT or any model you want
     embeddings1 = ats_model.encode([text1])
     embeddings2 = ats_model.encode([text2])
-    
-    # Calculate cosine similarity without adding an extra list layer
     similarity = cosine_similarity(embeddings1, embeddings2)[0][0]
     return similarity
 
 
-def get_report(resume,job_desc):
+# Function to get AI Report from Groq LLM
+def get_report(resume, job_desc):
     client = Groq(api_key=api_key)
 
-    # Change the prompt to get the results in your style
-    prompt=f"""
+    prompt = f"""
     # Context:
     - You are an AI Resume Analyzer, you will be given Candidate's resume and Job Description of the role he is applying for.
 
@@ -79,8 +76,8 @@ def get_report(resume,job_desc):
     Job Description: {job_desc}
 
     # Output:
-    - Each any every point should be given a score (example: 3/5 ). 
-    - Mention the scores and  relevant emoji at the beginning of each point and then explain the reason.
+    - Each and every point should be given a score (example: 3/5 ). 
+    - Mention the scores and relevant emoji at the beginning of each point and then explain the reason.
     """
 
     chat_completion = client.chat.completions.create(
@@ -89,44 +86,35 @@ def get_report(resume,job_desc):
     )
     return chat_completion.choices[0].message.content
 
+
+# Extract scores from LLM response
 def extract_scores(text):
-    # Regular expression pattern to find scores in the format x/5, where x can be an integer or a float
     pattern = r'(\d+(?:\.\d+)?)/5'
-    # Find all matches in the text
     matches = re.findall(pattern, text)
-    # Convert matches to floats
     scores = [float(match) for match in matches]
     return scores
 
 
-
-
 # <--------- Starting the Work Flow ---------> 
 
-# Displays Form only if the form is not submitted
 if not st.session_state.form_submitted:
     with st.form("my_form"):
 
-        # Taking input a Resume (PDF) file 
         resume_file = st.file_uploader(label="Upload your Resume/CV in PDF format", type="pdf")
 
-        # Taking input Job Description
-        st.session_state.job_desc = st.text_area("Enter the Job Description of the role you are applying for:",placeholder="Job Description...")
+        st.session_state.job_desc = st.text_area(
+            "Enter the Job Description of the role you are applying for:",
+            placeholder="Job Description...")
 
-        # Form Submission Button
         submitted = st.form_submit_button("Analyze")
         if submitted:
 
-            #  Allow only if Both Resume and Job Description are Submitted
             if st.session_state.job_desc and resume_file:
                 st.info("Extracting Information")
-
-                st.session_state.resume = extract_pdf_text(resume_file)      # Calling the function to extract text from Resume
-
+                st.session_state.resume = extract_pdf_text(resume_file)
                 st.session_state.form_submitted = True
-                st.rerun()                 # Refresh the page to close the form and give results
+                st.rerun()
 
-            # Donot allow if not uploaded
             else:
                 st.warning("Please Upload both Resume and Job Description to analyze")
 
@@ -134,44 +122,59 @@ if not st.session_state.form_submitted:
 if st.session_state.form_submitted:
     score_place = st.info("Generating Scores...")
 
-    # Call the function to get ATS Score
-    ats_score = calculate_similarity_bert(st.session_state.resume,st.session_state.job_desc)
+    ats_score = calculate_similarity_bert(st.session_state.resume, st.session_state.job_desc)
 
-    col1,col2 = st.columns(2,border=True)
+    col1, col2 = st.columns(2, border=True)
     with col1:
         st.write("Few ATS uses this score to shortlist candidates, Similarity Score:")
-        st.subheader(str(ats_score))
+        st.subheader(str(round(ats_score, 3)))
 
-    # Call the function to get the Analysis Report from LLM (Groq)
-    report = get_report(st.session_state.resume,st.session_state.job_desc)
+    report = get_report(st.session_state.resume, st.session_state.job_desc)
 
-    # Calculate the Average Score from the LLM Report
-    report_scores = extract_scores(report)                 # Example : [3/5, 4/5, 5/5,...]
-    avg_score = sum(report_scores) / (5*len(report_scores))  # Example: 2.4
-
+    report_scores = extract_scores(report)
+    avg_score = sum(report_scores) / (5 * len(report_scores)) if report_scores else 0
 
     with col2:
         st.write("Total Average score according to our AI report:")
-        st.subheader(str(avg_score))
+        st.subheader(str(round(avg_score, 3)))
+
     score_place.success("Scores generated successfully!")
 
-
     st.subheader("AI Generated Analysis Report:")
-
-    # Displaying Report 
     st.markdown(f"""
-            <div style='text-align: left; background-color: #000000; padding: 10px; border-radius: 10px; margin: 5px 0;'>
+            <div style='text-align: left; background-color: #000000; padding: 10px; border-radius: 10px; margin: 5px 0; color: white;'>
                 {report}
             </div>
             """, unsafe_allow_html=True)
-    
-    # Download Button
+
     st.download_button(
         label="Download Report",
         data=report,
         file_name="report.txt",
         icon=":material/download:",
-        )
-    
+    )
 
-# <-------------- End of the Work Flow --------------->
+
+# <-------------- Footer Animation --------------->
+
+def load_lottie_url(url: str):
+    r = requests.get(url)
+    if r.status_code != 200:
+        return None
+    return r.json()
+
+lottie_animation = load_lottie_url("https://assets7.lottiefiles.com/packages/lf20_49rdyysj.json")  # Looping animation
+
+st.markdown("<br><br><hr>", unsafe_allow_html=True)
+with st.container():
+    st_lottie(
+        lottie_animation,
+        speed=1,
+        reverse=False,
+        loop=True,
+        quality="high",
+        height=150,
+        width=150,
+        key="resume_footer_animation",
+    )
+    st.markdown("<p style='text-align: center; color: gray;'>AI Resume Analyzer powered by Streamlit & Groq</p>", unsafe_allow_html=True)
