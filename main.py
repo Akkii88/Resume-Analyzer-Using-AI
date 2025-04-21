@@ -6,8 +6,7 @@ from groq import Groq                             # API to use LLM's
 import re                                         # To perform Regular Expression Functions
 from dotenv import load_dotenv                    # Loading API Key from .env file
 import os                                         # For environment vars
-from streamlit_lottie import st_lottie            # For animations
-import requests                                   # To fetch animation JSON
+import requests                                   # (Still used for other purposes, if needed)
 
 
 # Load environment variables from .env
@@ -154,27 +153,5 @@ if st.session_state.form_submitted:
         icon=":material/download:",
     )
 
-
-# <-------------- Footer Animation --------------->
-
-def load_lottie_url(url: str):
-    r = requests.get(url)
-    if r.status_code != 200:
-        return None
-    return r.json()
-
-lottie_animation = load_lottie_url("https://assets7.lottiefiles.com/packages/lf20_49rdyysj.json")  # Looping animation
-
-st.markdown("<br><br><hr>", unsafe_allow_html=True)
-with st.container():
-    st_lottie(
-        lottie_animation,
-        speed=1,
-        reverse=False,
-        loop=True,
-        quality="high",
-        height=150,
-        width=150,
-        key="resume_footer_animation",
-    )
-    st.markdown("<p style='text-align: center; color: gray;'>AI Resume Analyzer powered by Streamlit & Groq</p>", unsafe_allow_html=True)
+# Removed footer Lottie animation
+# Everything else remains unchanged
